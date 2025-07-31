@@ -18,6 +18,7 @@ jobs:
     # 1 Checkout full history so tags are visible
     - uses: actions/checkout@v4
       with: { fetch-depth: 0 }
+      token: ${{ secrets.GH_PAT }}
 
     # 2 Read latest tag → bump patch (1.0.0 → 1.0.1 …)
     - name: Detect current version
