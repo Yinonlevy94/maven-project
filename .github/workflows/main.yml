@@ -13,6 +13,7 @@ jobs:
     permissions:
       contents: write        # commit + tag
       packages: write        # docker/login-action needs it
+      workflows: write
     steps:
     # 1 Checkout full history so tags are visible
     - uses: actions/checkout@v4
@@ -25,7 +26,7 @@ jobs:
         echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0.0)" >>"$GITHUB_OUTPUT"
     - name: Bump patch
       id: bump
-      uses: christian-draeger/increment-semantic-version@v2     
+      uses: christian-draeger/increment-semantic-version@v1.2.3     
       with:
         current-version: ${{ steps.cur.outputs.tag }}
         version-fragment: patch
