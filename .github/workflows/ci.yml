@@ -25,7 +25,7 @@ jobs:
         echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0.0)" >>"$GITHUB_OUTPUT"
     - name: Bump patch
       id: bump
-      uses: christian-draeger/increment-semantic-version@v2     
+      uses: christian-draeger/increment-semantic-version@     
       with:
         current-version: ${{ steps.cur.outputs.tag }}
         version-fragment: patch
