@@ -1,72 +1,71 @@
-name: Build & Push Docker image
+name: Build & Push (classic Docker CLI)
 
 on:
   push:
     branches: ["main"]
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/dummy-app   # e.g. myuser/dummy-app
+  # Docker image name, e.g. "yinonlevy94/dummy-app"
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/dummy-app
 
 jobs:
   docker:
     runs-on: ubuntu-latest
 
-    # Only the rights this job really needs
     permissions:
-      contents: write     # create + push tags
-      packages: write     # docker/login-action pushes images
+      # needed to create & push git tags
+      contents: write
+      # needed to push images to Docker Hub
+      packages: write
 
     steps:
-      # 1 Checkout **full** history so we can inspect tags
-      - uses: actions/checkout@v4          # token defaults to ${{ github.token }} :contentReference[oaicite:0]{index=0}
+      # 1  Check out full history so all tags are available
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2 Make sure every remote tag is present locally
+      # 2  Fetch every remote tag (keeps versioning in sync)
       - name: Fetch all tags
-        run: git fetch --tags --force --prune         # downloads + prunes tags :contentReference[oaicite:1]{index=1}
+        run: git fetch --tags --force --prune
 
-      # 3 Detect the latest *semantic-version* tag in the repo
+      # 3  Detect latest semantic-version tag
       - name: Detect latest version
         id: cur
         run: |
-          latest=$(git tag --list | sort -V | tail -n1)   # sort -V => 1.2.9 < 1.2.10 :contentReference[oaicite:2]{index=2}
-          echo "tag=${latest:-1.0.0}" >>"$GITHUB_OUTPUT"  # default first release
+          latest=$(git tag --list | sort -V | tail -n1)   # 1.2.9 < 1.2.10
+          echo "tag=${latest:-1.0.0}" >>"$GITHUB_OUTPUT"
 
-      # 4 Bump the **patch** part (1.0.0 → 1.0.1 …)
+      # 4  Bump the patch number (1.0.0 → 1.0.1, etc.)
       - name: Bump patch
         id: bump
-        uses: christian-draeger/increment-semantic-version@1.2.3   # numeric tag, no “v” :contentReference[oaicite:3]{index=3}
+        uses: christian-draeger/increment-semantic-version@1.2.3
         with:
           current-version: ${{ steps.cur.outputs.tag }}
           version-fragment: patch
 
-      # 5 Create the new tag **only if it doesn’t exist**
-      - name: Create & push tag
+      # 5  Create the new git tag only if it doesn't already exist
+      - name: Create & push git tag
         env:
           NEW: ${{ steps.bump.outputs.next-version }}
         run: |
-          if git rev-parse -q --verify "refs/tags/$NEW" >/dev/null; then   # collision test :contentReference[oaicite:4]{index=4}
+          if git rev-parse -q --verify "refs/tags/$NEW" >/dev/null; then
             echo "Tag $NEW already exists – skipping."
             exit 0
           fi
           git tag "$NEW"
-          git push origin "$NEW"            # needs contents:write :contentReference[oaicite:5]{index=5}
+          git push origin "$NEW"
 
-      # 6 Log in to Docker Hub
+      # 6  Log in to Docker Hub (classic CLI)
       - name: Docker Hub login
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" |
+             docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # 7 Build & push a multi-stage image
-      - name: Build & push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ steps.bump.outputs.next-version }}
-            ${{ env.IMAGE_NAME }}:latest
+      # 7  Build the image and push both versioned & latest tags
+      - name: Build image
+        run: |
+          docker build -t $IMAGE_NAME:${{ steps.bump.outputs.next-version }} \
+                       -t $IMAGE_NAME:latest .
+      - name: Push image
+        run: |
+          docker push $IMAGE_NAME:${{ steps.bump.outputs.next-version }}
+          docker push $IMAGE_NAME:latest
