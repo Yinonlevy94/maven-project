@@ -21,14 +21,16 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT }}   # ✅ move “token” under with
 
+          
+      - name: Fetch all tags
+        run: git fetch --tags --force --prune
+
+      
       # 2 Read latest tag → bump patch …
       - name: Detect current version
         id: cur
         run: |
           echo "tag=$(git describe --tags --abbrev=0 2>/dev/null || echo 1.0.0)" >>"$GITHUB_OUTPUT"
-
-      - name: Fetch all tags
-        run: git fetch --tags --force --prune
 
       - name: Bump patch
         id: bump
