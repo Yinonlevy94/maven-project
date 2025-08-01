@@ -9,6 +9,6 @@ RUN mvn -B -Denforcer.skip=true package
 FROM eclipse-temurin:17-jre-alpine        
 RUN apk add --no-cache tini
 WORKDIR /app
-COPY --from=builder /workspace/target/my-app-1.0-SNAPSHOT.jar /app/app.jar
+COPY --from=builder /workspace/target/*-SNAPSHOT.jar /app/app.jar
 ENTRYPOINT ["tini","--"]
 CMD ["java","-jar","/app/app.jar"]
