@@ -1,68 +1,74 @@
+# Name of the workflow as it appears in GitHub Actions UI
 name: Build & Push (classic Docker CLI)
 
+# Workflow trigger: run on push to "main" branch
 on:
   push:
     branches: ["main"]
 
+# Set environment variable for the Docker image name (using secrets for username)
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/dummy-app
 
 jobs:
-  docker:
+  docker:   # Job name
+
+    # Specify the runner OS
     runs-on: ubuntu-latest
 
     permissions:
-      # needed to create & push git tags
-      contents: write
-      # needed to push images to Docker Hub
-      packages: write
+      contents: write    # Allow job to write git tags to the repo
+      packages: write    # Allow job to push Docker images to registry
 
     steps:
+      # Step 1: Checkout repo (full history for versioning)
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0    # Fetch all history and tags
 
-      #fetch every remote tag (keeps versioning in sync)
+      # Step 2: Fetch all remote tags (get every version tag in git)
       - name: Fetch all tags
         run: git fetch --tags --force --prune
 
-      # detect latest semantic-version tag
+      # Step 3: Detect the latest version tag using semantic versioning (e.g. 1.2.10)
       - name: Detect latest version
         id: cur
         run: |
-          latest=$(git tag --list | sort -V | tail -n1)   # 1.2.9 < 1.2.10
-          echo "tag=${latest:-1.0.0}" >>"$GITHUB_OUTPUT"
+          latest=$(git tag --list | sort -V | tail -n1)   # sort tags, get highest
+          echo "tag=${latest:-1.0.0}" >>"$GITHUB_OUTPUT"  # default to 1.0.0 if none
 
-      # bump the patch number (1.0.0 → 1.0.1, etc.)
+      # Step 4: Bump the patch version (e.g. 1.0.0 → 1.0.1)
       - name: Bump patch
         id: bump
         uses: christian-draeger/increment-semantic-version@1.2.3
         with:
-          current-version: ${{ steps.cur.outputs.tag }}
-          version-fragment: patch
+          current-version: ${{ steps.cur.outputs.tag }}    # use detected version
+          version-fragment: patch                          # bump patch number
 
-      # create the new git tag only if it doesn't already exist
+      # Step 5: Create and push new git tag if it doesn’t already exist
       - name: Create & push git tag
         env:
           NEW: ${{ steps.bump.outputs.next-version }}
         run: |
           if git rev-parse -q --verify "refs/tags/$NEW" >/dev/null; then
-            echo "Tag $NEW already exists – skipping."
+            echo "Tag $NEW already exists – skipping."   # Avoid duplicate tags
             exit 0
           fi
-          git tag "$NEW"
-          git push origin "$NEW"
+          git tag "$NEW"                                # Create new tag
+          git push origin "$NEW"                        # Push tag to remote
 
-      # log in to Docker Hub (classic CLI)
+      # Step 6: Login to Docker Hub using classic CLI and secrets
       - name: Docker Hub login
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" |
              docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # build the image and push both versioned & latest tags
+      # Step 7: Build Docker image and tag it with both version and "latest"
       - name: Build image
         run: |
           docker build -t $IMAGE_NAME:${{ steps.bump.outputs.next-version }} \
                        -t $IMAGE_NAME:latest .
+
+      # Step 8: Push both versioned and "latest" tags to Docker Hub
       - name: Push image
         run: |
           docker push $IMAGE_NAME:${{ steps.bump.outputs.next-version }}
