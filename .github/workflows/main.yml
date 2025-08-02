@@ -1,12 +1,11 @@
-# name of the workflow as it appears in github actions ui
 name: build & push (classic docker cli)
 
-# workflow trigger: run on push to "main" branch
+# run on push to "main" branch
 on:
   push:
     branches: ["main"]
 
-# set environment variable for the docker image name (using secrets for username)
+# set environment variable for the docker image name
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/dummy-app
 
@@ -21,23 +20,23 @@ jobs:
       packages: write    # allow job to push docker images to registry
 
     steps:
-      # checkout repo (full history for versioning)
+      # checkout repo 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0    # fetch all history and tags
 
-      # fetch all remote tags (get every version tag in git)
+      # fetch all remote tags 
       - name: fetch all tags
         run: git fetch --tags --force --prune
 
-      # detect the latest version tag using semantic versioning (e.g. 1.2.10)
+      # detect the latest version tag using semantic versioning 
       - name: detect latest version
         id: cur
         run: |
           latest=$(git tag --list | sort -V | tail -n1)   # sort tags, get highest
           echo "tag=${latest:-1.0.0}" >>"$GITHUB_OUTPUT"  # default to 1.0.0 if none
 
-      # bump the patch version (e.g. 1.0.0 → 1.0.1)
+      # bump the patch version 
       - name: bump patch
         id: bump
         uses: christian-draeger/increment-semantic-version@1.2.3
@@ -57,18 +56,18 @@ jobs:
           git tag "$NEW"                                # create new tag
           git push origin "$NEW"                        # push tag to remote
 
-      # login to docker hub using classic cli and secrets
+      # login to docker hub using cli and secrets
       - name: docker hub login
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" |
              docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # build docker image and tag it with both version and "latest"
+      # build docker image and tag it 
       - name: build image
         run: |
           docker build -t $IMAGE_NAME:${{ steps.bump.outputs.next-version }} \
                        -t $IMAGE_NAME:latest .
 
-      # push both versioned and "latest" tags to docker hub
+      # push both to docker hub
       - name: push image
         run: |
           docker push $IMAGE_NAME:${{ steps.bump.outputs.next-version }}
